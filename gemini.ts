@@ -559,6 +559,9 @@ export async function handleGeminiStream(req: Request, res: Response) {
     };
 
     let fullText = '';
+    let groundingSources: any[] = [];
+    let webSearchQueries: string[] = [];
+    let functionCalls: any[] = [];
     if (toolsDropped) {
       fullText = `${TOOLS_DROPPED_NOTICE}\n\n`;
       res.write(`data: ${JSON.stringify({ type: 'chunk', text: `${TOOLS_DROPPED_NOTICE}\n\n` })}\n\n`);
@@ -566,9 +569,11 @@ export async function handleGeminiStream(req: Request, res: Response) {
     if (initialChunk) processChunk(initialChunk);
 
     fullText += initialChunk?.text || '';
-    let groundingSources: any[] = [];
-    let webSearchQueries: string[] = [];
-    let functionCalls: any[] = [];
+    // Gemini puede mandar la llamada en el primer chunk: si se ignora aquí,
+    // el CLI recibe `done` sin functionCalls y el agente se detiene sin tools.
+    if (Array.isArray(initialChunk?.functionCalls) && initialChunk.functionCalls.length > 0) {
+      functionCalls = initialChunk.functionCalls;
+    }
 
     while (true) {
       if (sseClosed) { try { await activeIterator.return?.(); } catch { /* ignore */ } break; }
@@ -585,7 +590,9 @@ export async function handleGeminiStream(req: Request, res: Response) {
             .filter((s: any) => s.url);
         }
       }
-      if (value?.functionCalls) functionCalls = value.functionCalls;
+      if (Array.isArray(value?.functionCalls) && value.functionCalls.length > 0) {
+        functionCalls = value.functionCalls;
+      }
     }
 
     // El cliente se soltó a mitad: no hay a quién entregar el cierre.

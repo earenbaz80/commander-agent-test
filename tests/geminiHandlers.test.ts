@@ -811,3 +811,59 @@ test('un close temprano de la petición no silencia el error del stream', async 
     assert.equal(res.ended, true, 'la respuesta debe cerrarse para que la UI deje de girar');
   });
 });
+
+test('el stream conserva la functionCall que llega en el primer chunk', async () => {
+  const sse = `data: ${JSON.stringify({
+    candidates: [
+      {
+        content: {
+          parts: [{ functionCall: { name: 'fs_read', args: { path: 'README.md' } } }],
+          role: 'model',
+        },
+        finishReason: 'STOP',
+      },
+    ],
+  })}\r\n\r\n`;
+  const fetchImpl = async () => ({
+    ok: true,
+    status: 200,
+    headers: new Headers({ 'content-type': 'text/event-stream' }),
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(sse));
+        controller.close();
+      },
+    }),
+  });
+
+  await withStubbedFetch(fetchImpl, async () => {
+    const res = mockRes();
+    await handleGeminiStream(
+      mockReq({
+        contents: 'Lee el README',
+        model: GEMINI_DEFAULT_MODEL,
+        tools: [
+          {
+            functionDeclarations: [
+              { name: 'fs_read', description: 'lee un archivo', parameters: { type: 'OBJECT', properties: { path: { type: 'STRING' } } } },
+            ],
+          },
+        ],
+      }),
+      res
+    );
+
+    const payload = res.chunks.join('');
+    const line = payload
+      .split('\n')
+      .find((part: string) => part.startsWith('data: ') && part.includes('"type":"done"'));
+    assert.ok(line, `falta el evento done (payload: ${payload})`);
+    const done = JSON.parse(line.slice('data: '.length));
+    assert.equal(
+      done.functionCalls?.[0]?.name,
+      'fs_read',
+      'la llamada del primer chunk no puede perderse'
+    );
+    assert.deepEqual(done.functionCalls?.[0]?.args, { path: 'README.md' });
+  });
+});
