@@ -6,7 +6,11 @@ import {
   getArtifact,
   saveArtifact,
 } from '../../src/artifacts/store';
-import type { Artifact, ArtifactFrame } from '../../src/artifacts/types';
+import {
+  isBrowserRecordingArtifact,
+  type ArtifactFrame,
+  type BrowserRecordingArtifact,
+} from '../../src/artifacts/types';
 
 function makeFrame(seq: number, atMs: number): ArtifactFrame {
   return {
@@ -22,7 +26,7 @@ function makeFrame(seq: number, atMs: number): ArtifactFrame {
   };
 }
 
-function makeArtifact(overrides: Partial<Artifact> = {}): Artifact {
+function makeArtifact(overrides: Partial<BrowserRecordingArtifact> = {}): BrowserRecordingArtifact {
   return {
     id: 'rec-1',
     kind: 'browser-recording',
@@ -83,8 +87,9 @@ describe('ArtifactsView', () => {
 
     await waitFor(async () => {
       const saved = await getArtifact('rec-1');
-      expect(saved?.comments).toHaveLength(1);
-      expect(saved?.comments[0]).toMatchObject({
+      const comments = saved && isBrowserRecordingArtifact(saved) ? saved.comments : [];
+      expect(comments).toHaveLength(1);
+      expect(comments[0]).toMatchObject({
         body: 'El botón de pago no responde',
         atMs: 0,
         x: 0.5,
@@ -118,7 +123,8 @@ describe('ArtifactsView', () => {
 
     await waitFor(async () => {
       const saved = await getArtifact('rec-1');
-      expect(saved?.comments[0]?.resolved).toBe(true);
+      const comments = saved && isBrowserRecordingArtifact(saved) ? saved.comments : [];
+      expect(comments[0]?.resolved).toBe(true);
     });
     expect(screen.getByLabelText('Reabrir comentario')).toBeInTheDocument();
   });

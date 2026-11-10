@@ -38,10 +38,11 @@ import {
   saveArtifact,
 } from '../../artifacts/store';
 import type {
-  Artifact,
   ArtifactComment,
   ArtifactFrame,
+  BrowserRecordingArtifact,
 } from '../../artifacts/types';
+import { isBrowserRecordingArtifact } from '../../artifacts/types';
 import { formatMediaTime, newArtifactId } from '../../artifacts/utils';
 
 interface ArtifactsViewProps {
@@ -92,7 +93,7 @@ function frameSrc(frame: ArtifactFrame): string {
     : `data:${frame.mimeType};base64,${frame.data}`;
 }
 
-function thumbnailOf(artifact: Artifact): string {
+function thumbnailOf(artifact: BrowserRecordingArtifact): string {
   const first = artifact.frames[0];
   return first ? frameSrc(first) : '';
 }
@@ -102,7 +103,7 @@ export function ArtifactsView({
   lang = 'es',
   onOpenBrowser,
 }: ArtifactsViewProps) {
-  const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [artifacts, setArtifacts] = useState<BrowserRecordingArtifact[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -120,7 +121,12 @@ export function ArtifactsView({
     setLoading(true);
     setError('');
     try {
-      const list = await listArtifacts(projectPath);
+      // F2-01: la vista existente sigue siendo sólo de grabaciones hasta
+      // que F2-05 añada el detalle de verificación. El guard mantiene el
+      // narrowing de `frames` en toda la vista.
+      const list = (await listArtifacts(projectPath)).filter(
+        isBrowserRecordingArtifact
+      );
       setArtifacts(list);
       setSelectedId((current) =>
         current && list.some((artifact) => artifact.id === current)
@@ -272,7 +278,7 @@ export function ArtifactsView({
       createdAt: Date.now(),
       resolved: false,
     };
-    const next: Artifact = {
+    const next: BrowserRecordingArtifact = {
       ...selected,
       comments: [...selected.comments, comment],
     };
@@ -291,7 +297,7 @@ export function ArtifactsView({
 
   const replaceComments = async (nextComments: ArtifactComment[]) => {
     if (!selected) return;
-    const next: Artifact = { ...selected, comments: nextComments };
+    const next: BrowserRecordingArtifact = { ...selected, comments: nextComments };
     setArtifacts((current) =>
       current.map((artifact) => (artifact.id === next.id ? next : artifact))
     );
