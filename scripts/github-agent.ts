@@ -373,7 +373,9 @@ async function main(): Promise<void> {
   const base = event.repository?.default_branch || process.env.GITHUB_BASE_REF || 'main';
 
   let command: CommanderCommand | null = null;
-  let issueNumber = Number(event.issue?.number || process.env.INPUT_ISSUE_NUMBER || 0);
+  let issueNumber = Number(
+    event.issue?.number || event.inputs?.issue_number || process.env.INPUT_ISSUE_NUMBER || 0
+  );
   let isPull = Boolean(event.issue?.pull_request);
   let issueTitle = event.issue?.title || '';
   let issueBody = event.issue?.body || '';
